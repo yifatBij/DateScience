@@ -1,3 +1,8 @@
+#1. Initialization
+#Clean the work space #
+rm(list = ls()) # :) remove all variables from global environment
+cat("\014") # clear the screen
+
 data_preparation <- function(dataset) {
   dataset[,"BUYER_FLAG"] = factor(dataset[,"BUYER_FLAG"], levels = c(0,1), labels = c("No", "Yes"))
   dataset[,"BENEFIT_FLAG"] = factor(dataset[,"BENEFIT_FLAG"], levels = c(0,1), labels = c("No", "Yes"))
@@ -8,7 +13,8 @@ data_preparation <- function(dataset) {
   dataset[,"STATUS_SILVER"] = factor(dataset[,"STATUS_SILVER"], levels = c(0,1), labels = c("No", "Yes"))
   dataset[,"CREDIT_PROBLEM"] = factor(dataset[,"CREDIT_PROBLEM"], levels = c(0,1), labels = c("No", "Yes"))
   dataset[,"REVIEW_RATING"] = factor(dataset[,"REVIEW_RATING"], levels = c("No", "Yes"), labels = c("No", "Yes"))
-
+  
+  dataset = subset(dataset, select = -c(ID) )
   return(dataset)
 }
 
@@ -40,23 +46,20 @@ dataset_rollout = data_preparation(dataset_rollout)
 
 # Balance the data
 library(DMwR)
-balanced.data <- SMOTE(BUYER_FLAG ~.-ID, dataset_train, perc.over = 100)
+set.seed(444) 
+balanced.data <- SMOTE(BUYER_FLAG ~., dataset_train, perc.over = 100)
 
 # Run the selected model
 library(caret)
-library(doParallel)
-cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
-registerDoParallel(cluster)
-set.seed(225)
-trainControl <- trainControl(method = "oob",
-                            number = 5,
-                            allowParallel = TRUE)
-set.seed(135) 
+set.seed(222) 
+train_control <- trainControl(method = "oob", allowParallel = TRUE) 
+set.seed(333) 
 model <- train(BUYER_FLAG ~., data = balanced.data, method = 'rf', 
-                        trControl = trainControl) 
-set.seed(131) 
+               trControl = train_control) 
+
 prediction<- predict(model, newdata = dataset_rollout, type="prob")[,2]
 
+dataset_rollout = read.csv(file_path_rollout, na.strings = "")
 labels = ifelse(prediction > 0.5, 1, 0)
 dataset_rollout[,"BUYER_FLAG"] = labels
-write.csv(dataset_rollout[,c("ID","BUYER_FLAG")], 'recommendations_oob.csv', row.names = FALSE)
+write.csv(dataset_rollout[,c("ID","BUYER_FLAG")], 'recommendations.csv', row.names = FALSE)
